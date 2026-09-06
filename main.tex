@@ -7,6 +7,8 @@
 \usepackage{amssymb}
 \usepackage{graphicx}
 \usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{titlesec}
 \usepackage{hyperref}
 \usepackage{newtxtext}
 \usepackage{newtxmath}
@@ -23,6 +25,14 @@
     topsep=3pt
 }
 
+% Plain, left-aligned run-in headings (memo style, matching the
+% example proposal) instead of IEEEtran's default centered small caps.
+\titleformat{\section}{\normalfont\large\bfseries}{}{0pt}{}
+\titlespacing*{\section}{0pt}{14pt}{6pt}
+
+% Subtitle color matching the example proposal's link-style byline.
+\definecolor{subtitleblue}{HTML}{1155CC}
+
 % =========================================================
 % Document
 % =========================================================
@@ -32,16 +42,16 @@
 % Title
 % =========================================================
 
-\begin{center}
-    {\Large \textbf{Learning Planar Object Pushing with Reinforcement Learning}}\\[5pt]
-    {\large ME5418 Final Project Proposal}\\[8pt]
+\begin{flushleft}
+    {\huge \textbf{Learning Planar Object Pushing with Reinforcement Learning}}\\[6pt]
+    {\large \color{subtitleblue} ME5418 Final Project Proposal}\\[10pt]
 
-    Taowen Liu, A0352191J
+    \textbf{Taowen Liu}, A0352191J
     \qquad
-    Xuanwei Liu, A0357433B
+    \textbf{Xuanwei Liu}, A0357433B
     \qquad
-    Chengtao Zheng, A0351467Y
-\end{center}
+    \textbf{Chengtao Zheng}, A0351467Y
+\end{flushleft}
 
 \vspace{0.2cm}
 
@@ -119,7 +129,10 @@
     We consider a tabletop planar pushing environment containing a robot
     end-effector (or pusher), a movable rigid object, and a target pose. The main
     experiment will use a T-shaped object, although simpler shapes may also be
-    considered.
+    considered. The workspace is a bounded square tabletop (e.g., roughly
+    $0.4\,\mathrm{m} \times 0.4\,\mathrm{m}$), simulated with a 2D rigid-body
+    physics engine (e.g., PyMunk or a similar lightweight simulator, or MuJoCo if
+    a 3D pusher/arm is used).
 
     \item
     At the beginning of each episode, the object's initial position and orientation
@@ -128,9 +141,10 @@
 
     \item
     The robot must push the object from its initial configuration to the target
-    configuration within a limited number of control steps. The task is completed
-    successfully when both the position and orientation errors are below predefined
-    thresholds.
+    configuration within a limited number of control steps (e.g., 200--300 steps
+    per episode). The task is completed successfully when both the position and
+    orientation errors are below predefined thresholds, e.g., a position error
+    below $2\,\mathrm{cm}$ and an orientation error below $10^{\circ}$.
 
     \item
     If time permits, we will additionally randomize physical properties such as
@@ -188,22 +202,30 @@
         r_t =
         -w_p d_{\mathrm{pos}}
         -w_r d_{\mathrm{rot}}
+        - c_{\mathrm{step}}
         + r_{\mathrm{success}},
     \]
 
     where $d_{\mathrm{pos}}$ is the distance between the current and target object
-    positions, $d_{\mathrm{rot}}$ is the orientation error, and
-    $r_{\mathrm{success}}$ is a large positive reward when the object reaches the
-    target pose.
+    positions, $d_{\mathrm{rot}}$ is the orientation error, $c_{\mathrm{step}}$ is
+    a small constant per-step cost, and $r_{\mathrm{success}}$ is a large positive
+    reward when the object reaches the target pose. As a starting point we plan to
+    use $w_p \approx 1.0$, $w_r \approx 0.5$, $c_{\mathrm{step}} \approx 0.01$, and
+    $r_{\mathrm{success}} = +10$; these weights will be tuned empirically.
 
-    A small action or time penalty may also be included to encourage efficient
-    solutions.
+    An additional penalty (e.g., $-1$) may be applied if the pusher exits the
+    workspace or loses contact with the object for an extended period, to
+    discourage degenerate behaviors.
 
     \item
     \textbf{Neural Network Structure:}
 
     Since the observation space is low-dimensional, we plan to use a simple
-    multilayer perceptron (MLP) for the policy and value networks.
+    multilayer perceptron (MLP) for the policy and value networks, e.g., two
+    hidden layers of 256 units with ReLU activations, following common defaults
+    for continuous-control PPO implementations (such as Stable-Baselines3). The
+    actor and critic may share the same trunk with separate output heads, or use
+    fully separate networks if training is unstable.
 
 \end{itemize}
 
@@ -226,7 +248,8 @@
     \item
     We will evaluate the learned policy mainly in terms of task success rate,
     final position error, final orientation error, and the number of control steps
-    required to reach the target.
+    required to reach the target, averaged over a held-out set of randomized
+    episodes (e.g., 100 test episodes not seen during training).
 
     \item
     The learned policy will be evaluated under different object initial poses and
@@ -236,10 +259,13 @@
 
     \item
     As a simple baseline, we will compare the RL policy with a heuristic pushing
-    controller that moves the pusher toward the object and pushes it approximately
-    in the direction of the target. We expect the learned policy to perform better
-    on cases that require multiple contacts or simultaneous adjustment of object
-    position and orientation.
+    controller that first moves the pusher to a contact point behind the object
+    (relative to the target direction) and then pushes it approximately in a
+    straight line toward the target, re-planning the contact point whenever the
+    object-to-target direction changes significantly. We expect the learned
+    policy to perform better on cases that require multiple contacts or
+    simultaneous adjustment of object position and orientation, where the
+    straight-line heuristic is expected to fail or take a large number of steps.
 
 \end{itemize}
 
