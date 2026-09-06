@@ -65,25 +65,21 @@
 \begin{itemize}
 
     \item
-    Pushing is a fundamental robotic manipulation skill that can be useful when
-    directly grasping an object is difficult or unnecessary. For example, in
-    industrial manipulation, a robot may first push a component to a desired
-    position and orientation before grasping, assembling, or further manipulating
-    it.
+    Pushing is a fundamental manipulation skill, useful when directly grasping an
+    object is difficult or unnecessary, e.g., pre-positioning a component before
+    grasping or assembly in industrial settings.
 
     \item
-    Despite its simple appearance, pushing is a contact-rich manipulation problem.
-    The resulting object motion depends on the contact location, pushing direction,
-    object geometry, and physical properties such as friction. It can therefore be
-    difficult to design a single hand-crafted controller that works reliably under
-    different initial configurations.
+    Despite its simple appearance, pushing is contact-rich: the resulting object
+    motion depends on contact location, pushing direction, object geometry, and
+    friction, making a single hand-crafted controller hard to design for all
+    configurations.
 
     \item
     In this project, we investigate whether reinforcement learning can learn a
     closed-loop pushing policy that moves an object from a randomized initial pose
-    to a desired target pose. We will primarily consider a T-shaped object similar
-    to the Push-T task, while the same framework can also be evaluated on simpler
-    object geometries.
+    to a desired target pose, primarily for a T-shaped object similar to the
+    Push-T task, with simpler geometries also possible.
 
 \end{itemize}
 
@@ -97,22 +93,23 @@
 \begin{itemize}
 
     \item
-    Conventional robotic pushing approaches can use geometric planning,
-    model-based control, trajectory optimization, or manually designed pushing
-    strategies. Given an estimate of object pose and contact dynamics, these
-    approaches can determine a sequence of pushing actions to move the object
-    toward a target configuration.
+    Conventional pushing approaches rely on geometric planning, model-based
+    control, or trajectory optimization, using an estimated object pose and
+    contact dynamics to plan a sequence of actions toward the target. However,
+    accurate contact dynamics are difficult to model when geometry and friction
+    vary, so these methods often require precise physical parameters or frequent
+    replanning.
 
     \item
-    However, accurate contact dynamics can be difficult to model, especially when
-    object geometry and friction vary. Model-based approaches may therefore require
-    accurate physical parameters or repeated replanning.
-
-    \item
-    Instead, we would like to investigate whether a reinforcement learning agent
-    can directly learn a feedback policy through interaction with the simulated
-    environment, and adapt its pushing actions according to the current object
-    and target poses.
+    Instead, we believe reinforcement learning is a good fit for this problem:
+    rather than relying on an explicit (and potentially inaccurate) contact
+    model, an RL agent can learn a closed-loop feedback policy directly from
+    experience, implicitly capturing how contact location and pushing direction
+    affect the resulting motion. We favor RL specifically over supervised or
+    imitation learning because it requires no dataset of expert demonstrations:
+    the agent can instead discover an effective strategy on its own by directly
+    optimizing task success through trial-and-error interaction, a natural fit
+    for this sequential, closed-loop decision-making problem.
 
 \end{itemize}
 
@@ -126,30 +123,26 @@
 \begin{itemize}
 
     \item
-    We consider a tabletop planar pushing environment containing a robot
-    end-effector (or pusher), a movable rigid object, and a target pose. The main
-    experiment will use a T-shaped object, although simpler shapes may also be
-    considered. The workspace is a bounded square tabletop (e.g., roughly
-    $0.4\,\mathrm{m} \times 0.4\,\mathrm{m}$), simulated with a 2D rigid-body
-    physics engine (e.g., PyMunk or a similar lightweight simulator, or MuJoCo if
-    a 3D pusher/arm is used).
+    We consider a tabletop planar pushing environment with a robot end-effector
+    (pusher), a movable rigid object, and a target pose, on a bounded square
+    tabletop (roughly $0.4\,\mathrm{m} \times 0.4\,\mathrm{m}$). The main
+    experiment uses a T-shaped object, although simpler shapes may also be
+    considered.
 
     \item
-    At the beginning of each episode, the object's initial position and orientation
-    are randomly generated within the workspace. The target position and
-    orientation may also be randomized.
+    At the start of each episode, the object's initial position and orientation
+    are randomized within the workspace; the target pose may also be randomized.
 
     \item
-    The robot must push the object from its initial configuration to the target
-    configuration within a limited number of control steps (e.g., 200--300 steps
-    per episode). The task is completed successfully when both the position and
-    orientation errors are below predefined thresholds, e.g., a position error
-    below $2\,\mathrm{cm}$ and an orientation error below $10^{\circ}$.
+    The robot must reach the target configuration within a limited number of
+    control steps (e.g., 200--300 per episode), succeeding when the position
+    error is below $2\,\mathrm{cm}$ and the orientation error is below
+    $10^{\circ}$.
 
     \item
     If time permits, we will additionally randomize physical properties such as
-    the object--table friction coefficient to test whether the learned policy can
-    remain robust under different dynamics.
+    the object--table friction coefficient to test robustness under different
+    dynamics.
 
 \end{itemize}
 
@@ -164,9 +157,7 @@
 
     \item
     \textbf{State space:}
-
-    The observation will contain low-dimensional robot and object states,
-    including:
+    Low-dimensional robot and object states, including:
 
     \begin{itemize}
         \item current pusher/end-effector position;
@@ -178,25 +169,14 @@
 
     \item
     \textbf{Action space:}
-
-    We will use a continuous action space controlling the planar motion of the
-    pusher/end-effector. A simple action representation is
-
-    \[
-        a_t = [\Delta x, \Delta y],
-    \]
-
-    where $\Delta x$ and $\Delta y$ specify the desired displacement of the
-    pusher during each control step.
-
-    If a robotic arm is used, these commands can instead be converted into
-    end-effector Cartesian control commands.
+    A continuous action space controlling the planar motion of the
+    pusher/end-effector, $a_t = [\Delta x, \Delta y]$, the desired displacement
+    per control step. If a robotic arm is used, these commands can instead be
+    converted into end-effector Cartesian control commands.
 
     \item
     \textbf{Reward structure:}
-
-    The reward will mainly encourage progress toward the desired object pose.
-    A possible reward is
+    The reward mainly encourages progress toward the target pose,
 
     \[
         r_t =
@@ -206,26 +186,21 @@
         + r_{\mathrm{success}},
     \]
 
-    where $d_{\mathrm{pos}}$ is the distance between the current and target object
-    positions, $d_{\mathrm{rot}}$ is the orientation error, $c_{\mathrm{step}}$ is
-    a small constant per-step cost, and $r_{\mathrm{success}}$ is a large positive
-    reward when the object reaches the target pose. As a starting point we plan to
-    use $w_p \approx 1.0$, $w_r \approx 0.5$, $c_{\mathrm{step}} \approx 0.01$, and
-    $r_{\mathrm{success}} = +10$; these weights will be tuned empirically.
-
-    An additional penalty (e.g., $-1$) may be applied if the pusher exits the
-    workspace or loses contact with the object for an extended period, to
-    discourage degenerate behaviors.
+    where $d_{\mathrm{pos}}$ and $d_{\mathrm{rot}}$ are the position and
+    orientation errors, $c_{\mathrm{step}}$ is a small per-step cost, and
+    $r_{\mathrm{success}}$ is a large positive reward on completion (e.g.,
+    $w_p{\approx}1.0$, $w_r{\approx}0.5$, $c_{\mathrm{step}}{\approx}0.01$,
+    $r_{\mathrm{success}}=+10$, to be tuned empirically). An additional penalty
+    (e.g., $-1$) may apply if the pusher exits the workspace or loses contact for
+    too long.
 
     \item
     \textbf{Neural Network Structure:}
-
-    Since the observation space is low-dimensional, we plan to use a simple
-    multilayer perceptron (MLP) for the policy and value networks, e.g., two
-    hidden layers of 256 units with ReLU activations, following common defaults
-    for continuous-control PPO implementations (such as Stable-Baselines3). The
-    actor and critic may share the same trunk with separate output heads, or use
-    fully separate networks if training is unstable.
+    Since the observation space is low-dimensional, we plan to use a simple MLP
+    (e.g., two hidden layers of 256 units, ReLU) for the policy and value
+    networks, following common continuous-control PPO defaults (e.g.,
+    Stable-Baselines3), with the actor and critic sharing a trunk or fully
+    separate if training is unstable.
 
 \end{itemize}
 
@@ -239,33 +214,30 @@
 \begin{itemize}
 
     \item
-    We plan to use Proximal Policy Optimization (PPO) as the primary reinforcement
-    learning algorithm, since it is widely used for continuous robotic control and
-    is relatively stable and straightforward to train. Depending on the available
-    time, we may additionally compare PPO with another continuous-control
-    algorithm such as SAC.
+    We plan to use Proximal Policy Optimization (PPO) as the primary algorithm,
+    given its stability and wide use in continuous robotic control; time
+    permitting, we may additionally compare against SAC.
 
     \item
-    We will evaluate the learned policy mainly in terms of task success rate,
-    final position error, final orientation error, and the number of control steps
-    required to reach the target, averaged over a held-out set of randomized
-    episodes (e.g., 100 test episodes not seen during training).
+    We will evaluate task success rate, final position error, final orientation
+    error, and steps-to-target, averaged over a held-out set of randomized test
+    episodes (e.g., 100).
 
     \item
-    The learned policy will be evaluated under different object initial poses and
-    target poses. If time permits, we will further test different friction
-    coefficients or object geometries to study the generalization and robustness
-    of the policy.
+    The policy will be evaluated under different initial and target poses, and
+    if time permits, under different friction coefficients or object geometries,
+    to study generalization and robustness.
 
     \item
-    As a simple baseline, we will compare the RL policy with a heuristic pushing
-    controller that first moves the pusher to a contact point behind the object
-    (relative to the target direction) and then pushes it approximately in a
-    straight line toward the target, re-planning the contact point whenever the
-    object-to-target direction changes significantly. We expect the learned
-    policy to perform better on cases that require multiple contacts or
-    simultaneous adjustment of object position and orientation, where the
-    straight-line heuristic is expected to fail or take a large number of steps.
+    As a baseline, we will compare against a heuristic controller that first
+    moves the pusher to a contact point behind the object (relative to the
+    target direction) and then pushes it toward the target, re-planning as the
+    object-to-target direction changes. We deliberately use this lightweight
+    heuristic rather than a full model-based planner, since the latter would
+    itself require an accurate contact/friction model, which is exactly the
+    dependency we are trying to avoid by using RL. We expect the learned policy
+    to perform better on cases requiring multiple contacts or simultaneous
+    position/orientation adjustment.
 
 \end{itemize}
 
