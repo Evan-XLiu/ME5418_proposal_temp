@@ -1,245 +1,67 @@
-\documentclass[11pt,onecolumn]{IEEEtran}
-
-% =========================================================
-% Packages
-% =========================================================
-\usepackage{amsmath}
-\usepackage{amssymb}
-\usepackage{graphicx}
-\usepackage{enumitem}
-\usepackage{hyperref}
-
-% =========================================================
-% Formatting
-% =========================================================
-\setlength{\parindent}{0pt}
-\setlength{\parskip}{3pt}
+# ME5418 课程项目提案
 
-\setlist[itemize]{
-    leftmargin=1.5em,
-    itemsep=4pt,
-    topsep=3pt
-}
-
-% =========================================================
-% Document
-% =========================================================
-\begin{document}
-
-% =========================================================
-% Title
-% =========================================================
-
-\begin{center}
-    {\Large \textbf{Learning Planar Object Pushing with Reinforcement Learning}}\\[5pt]
-    {\large ME5418 Final Project Proposal}\\[8pt]
-
-    Taowen Liu, A0352191J
-    \qquad
-    Xuanwei Liu, A0357433B
-    \qquad
-    Chengtao Zheng, A0351467Y
-\end{center}
-
-\vspace{0.2cm}
+本仓库包含 **Learning Planar Object Pushing with Reinforcement Learning** 的
+LaTeX 源码和编译完成的 PDF。
 
-
-% =========================================================
-% Why
-% =========================================================
+## 仓库结构
 
-\section*{Why:}
+```text
+.
+├── main.tex          # 提案 LaTeX 源码
+├── main.pdf          # 编译完成的提案
+├── Makefile          # 编译命令
+├── environment.yml   # 独立的 Conda 编译环境
+└── README.md         # 使用说明
+```
 
-\begin{itemize}
+## 快速开始
 
-    \item
-    Pushing is a fundamental robotic manipulation skill that can be useful when
-    directly grasping an object is difficult or unnecessary. For example, in
-    industrial manipulation, a robot may first push a component to a desired
-    position and orientation before grasping, assembling, or further manipulating
-    it.
+本项目使用 Tectonic 作为 LaTeX 编译器。环境会创建在仓库内的 `.conda-env`
+目录中，不会在 Conda `base` 环境中安装、升级或删除任何包。
 
-    \item
-    Despite its simple appearance, pushing is a contact-rich manipulation problem.
-    The resulting object motion depends on the contact location, pushing direction,
-    object geometry, and physical properties such as friction. It can therefore be
-    difficult to design a single hand-crafted controller that works reliably under
-    different initial configurations.
+```bash
+conda env create --prefix ./.conda-env --file environment.yml
+conda activate ./.conda-env
+make
+```
 
-    \item
-    In this project, we investigate whether reinforcement learning can learn a
-    closed-loop pushing policy that moves an object from a randomized initial pose
-    to a desired target pose. We will primarily consider a T-shaped object similar
-    to the Push-T task, while the same framework can also be evaluated on simpler
-    object geometries.
+编译结果会写入仓库根目录的 `main.pdf`。中间文件保存在 `build/` 中，不会被
+Git 跟踪。
 
-\end{itemize}
+退出环境：
 
+```bash
+conda deactivate
+```
 
-% =========================================================
-% Conventional Algorithms
-% =========================================================
+清理生成文件：
 
-\section*{Conventional Algorithms:}
+```bash
+make clean
+```
 
-\begin{itemize}
+`make clean` 也会删除纳入版本控制的 `main.pdf`；再次运行 `make` 即可重新生成。
 
-    \item
-    Conventional robotic pushing approaches can use geometric planning,
-    model-based control, trajectory optimization, or manually designed pushing
-    strategies. Given an estimate of object pose and contact dynamics, these
-    approaches can determine a sequence of pushing actions to move the object
-    toward a target configuration.
+## 修改并重新编译
 
-    \item
-    However, accurate contact dynamics can be difficult to model, especially when
-    object geometry and friction vary. Model-based approaches may therefore require
-    accurate physical parameters or repeated replanning.
+1. 使用任意文本编辑器修改 `main.tex`。
+2. 运行 `conda activate ./.conda-env` 激活仓库环境。
+3. 运行 `make`。
+4. 打开 `main.pdf` 检查结果。
 
-    \item
-    Instead, we would like to investigate whether a reinforcement learning agent
-    can directly learn a feedback policy through interaction with the simulated
-    environment, and adapt its pushing actions according to the current object
-    and target poses.
+首次编译时，Tectonic 会自动下载缺少的 TeX 宏包，因此需要联网且耗时可能稍长。
+后续编译会复用 Tectonic 的用户缓存。
 
-\end{itemize}
+## 常用命令
 
+```bash
+make          # 将 main.tex 编译为 main.pdf
+make clean    # 删除 main.pdf 和中间文件
+make rebuild  # 清理后从头编译
+```
 
-% =========================================================
-% Problem Statement
-% =========================================================
+## 使用已有的 Tectonic
 
-\section*{Problem Statement:}
-
-\begin{itemize}
-
-    \item
-    We consider a tabletop planar pushing environment containing a robot
-    end-effector (or pusher), a movable rigid object, and a target pose. The main
-    experiment will use a T-shaped object, although simpler shapes may also be
-    considered.
-
-    \item
-    At the beginning of each episode, the object's initial position and orientation
-    are randomly generated within the workspace. The target position and
-    orientation may also be randomized.
-
-    \item
-    The robot must push the object from its initial configuration to the target
-    configuration within a limited number of control steps. The task is completed
-    successfully when both the position and orientation errors are below predefined
-    thresholds.
-
-    \item
-    If time permits, we will additionally randomize physical properties such as
-    the object--table friction coefficient to test whether the learned policy can
-    remain robust under different dynamics.
-
-\end{itemize}
-
-
-% =========================================================
-% RL Cast
-% =========================================================
-
-\section*{RL Cast:}
-
-\begin{itemize}
-
-    \item
-    \textbf{State space:}
-
-    The observation will contain low-dimensional robot and object states,
-    including:
-
-    \begin{itemize}
-        \item current pusher/end-effector position;
-        \item object position and orientation;
-        \item target position and orientation;
-        \item relative object-to-target position and orientation;
-        \item optionally, object and robot velocities.
-    \end{itemize}
-
-    \item
-    \textbf{Action space:}
-
-    We will use a continuous action space controlling the planar motion of the
-    pusher/end-effector. A simple action representation is
-
-    \[
-        a_t = [\Delta x, \Delta y],
-    \]
-
-    where $\Delta x$ and $\Delta y$ specify the desired displacement of the
-    pusher during each control step.
-
-    If a robotic arm is used, these commands can instead be converted into
-    end-effector Cartesian control commands.
-
-    \item
-    \textbf{Reward structure:}
-
-    The reward will mainly encourage progress toward the desired object pose.
-    A possible reward is
-
-    \[
-        r_t =
-        -w_p d_{\mathrm{pos}}
-        -w_r d_{\mathrm{rot}}
-        + r_{\mathrm{success}},
-    \]
-
-    where $d_{\mathrm{pos}}$ is the distance between the current and target object
-    positions, $d_{\mathrm{rot}}$ is the orientation error, and
-    $r_{\mathrm{success}}$ is a large positive reward when the object reaches the
-    target pose.
-
-    A small action or time penalty may also be included to encourage efficient
-    solutions.
-
-    \item
-    \textbf{Neural Network Structure:}
-
-    Since the observation space is low-dimensional, we plan to use a simple
-    multilayer perceptron (MLP) for the policy and value networks.
-
-\end{itemize}
-
-
-% =========================================================
-% RL Algorithms
-% =========================================================
-
-\section*{RL Algorithms and Envisioned Results:}
-
-\begin{itemize}
-
-    \item
-    We plan to use Proximal Policy Optimization (PPO) as the primary reinforcement
-    learning algorithm, since it is widely used for continuous robotic control and
-    is relatively stable and straightforward to train. Depending on the available
-    time, we may additionally compare PPO with another continuous-control
-    algorithm such as SAC.
-
-    \item
-    We will evaluate the learned policy mainly in terms of task success rate,
-    final position error, final orientation error, and the number of control steps
-    required to reach the target.
-
-    \item
-    The learned policy will be evaluated under different object initial poses and
-    target poses. If time permits, we will further test different friction
-    coefficients or object geometries to study the generalization and robustness
-    of the policy.
-
-    \item
-    As a simple baseline, we will compare the RL policy with a heuristic pushing
-    controller that moves the pusher toward the object and pushes it approximately
-    in the direction of the target. We expect the learned policy to perform better
-    on cases that require multiple contacts or simultaneous adjustment of object
-    position and orientation.
-
-\end{itemize}
-
-
-\end{document}
+如果系统中已经安装 Tectonic，则不必创建 Conda 环境，直接运行 `make` 即可。
+源码使用 `IEEEtran`、`amsmath`、`amssymb`、`graphicx`、`enumitem`、
+`hyperref`、`newtxtext` 和 `newtxmath` 宏包。

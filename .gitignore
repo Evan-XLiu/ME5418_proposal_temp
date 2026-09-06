@@ -1,0 +1,6 @@
+.conda-env/
+.conda-pkgs/
+.cache/
+build/
+.DS_Store
+*.synctex.gz

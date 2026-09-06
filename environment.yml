@@ -1,0 +1,6 @@
+name: me5418-latex
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - tectonic >=0.15,<0.16
