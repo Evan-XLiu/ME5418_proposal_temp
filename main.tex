@@ -78,8 +78,8 @@
     \item
     In this project, we investigate whether reinforcement learning can learn a
     closed-loop pushing policy that moves an object from a randomized initial pose
-    to a desired target pose, primarily for a T-shaped object similar to the
-    Push-T task, with simpler geometries also possible.
+    to a desired target pose without relying on an accurate analytic model of the
+    contact dynamics.
 
 \end{itemize}
 
@@ -94,11 +94,13 @@
 
     \item
     Conventional pushing approaches rely on geometric planning, model-based
-    control, or trajectory optimization, using an estimated object pose and
-    contact dynamics to plan a sequence of actions toward the target. However,
-    accurate contact dynamics are difficult to model when geometry and friction
-    vary, so these methods often require precise physical parameters or frequent
-    replanning.
+    control, or trajectory optimization (e.g., quasi-static limit-surface
+    pushing models or model-predictive control), using an estimated object pose
+    and contact dynamics to plan a sequence of actions toward the target.
+    However, accurate contact dynamics are difficult to model when geometry and
+    friction vary, so these methods often require precise physical parameters;
+    small modeling errors also compound over a push sequence, forcing frequent,
+    computationally expensive replanning to stay on target.
 
     \item
     Instead, we believe reinforcement learning is a good fit for this problem:
@@ -123,11 +125,21 @@
 \begin{itemize}
 
     \item
-    We consider a tabletop planar pushing environment with a robot end-effector
-    (pusher), a movable rigid object, and a target pose, on a bounded square
-    tabletop (roughly $0.4\,\mathrm{m} \times 0.4\,\mathrm{m}$). The main
-    experiment uses a T-shaped object, although simpler shapes may also be
-    considered.
+    We consider a tabletop planar pushing environment with a single robot
+    end-effector (pusher), a movable rigid object, and a target pose, on a
+    bounded square tabletop (roughly $0.4\,\mathrm{m} \times 0.4\,\mathrm{m}$).
+    The main experiment uses a T-shaped object, although simpler shapes may also
+    be considered.
+
+    \item
+    This is a single-agent, single-robot task with no inter-agent communication.
+    At each control step, the agent is assumed to have full-state knowledge of
+    the pusher position and the object's planar pose (position and orientation),
+    provided directly by the simulator and analogous to an overhead-camera or
+    motion-capture pose estimator in a real setup; no force/torque or tactile
+    sensing is assumed. The agent's only capability is to command the planar
+    position of the pusher (it cannot grasp or lift the object), so the object
+    can only be moved indirectly through contact.
 
     \item
     At the start of each episode, the object's initial position and orientation
@@ -247,12 +259,11 @@
     As a baseline, we will compare against a heuristic controller that first
     moves the pusher to a contact point behind the object (relative to the
     target direction) and then pushes it toward the target, re-planning as the
-    object-to-target direction changes. We deliberately use this lightweight
-    heuristic rather than a full model-based planner, since the latter would
-    itself require an accurate contact/friction model, which is exactly the
-    dependency we are trying to avoid by using RL. We expect the learned policy
-    to perform better on cases requiring multiple contacts or simultaneous
-    position/orientation adjustment.
+    object-to-target direction changes. We use this lightweight heuristic rather
+    than a full model-based planner, since the latter would itself require an
+    accurate contact/friction model -- exactly the dependency RL avoids. We
+    expect the learned policy to perform better on cases requiring multiple
+    contacts or simultaneous position/orientation adjustment.
 
 \end{itemize}
 
