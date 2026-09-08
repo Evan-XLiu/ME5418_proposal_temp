@@ -176,23 +176,38 @@
 
     \item
     \textbf{Reward structure:}
-    The reward mainly encourages progress toward the target pose,
+    We use a dense pose-error reward with normalized position and orientation
+    terms, so their relative weights are not determined by the choice of units:
 
     \[
         r_t =
-        -w_p d_{\mathrm{pos}}
-        -w_r d_{\mathrm{rot}}
+        -w_p \frac{d_{\mathrm{pos},t+1}}{L}
+        -w_r \frac{d_{\mathrm{rot},t+1}}{\pi}
         - c_{\mathrm{step}}
-        + r_{\mathrm{success}},
+        + R_s\mathbf{1}[\mathrm{success}_{t+1}]
+        - c_b\mathbf{1}[\mathrm{invalid}_t].
     \]
 
-    where $d_{\mathrm{pos}}$ and $d_{\mathrm{rot}}$ are the position and
-    orientation errors, $c_{\mathrm{step}}$ is a small per-step cost, and
-    $r_{\mathrm{success}}$ is a large positive reward on completion (e.g.,
-    $w_p{\approx}1.0$, $w_r{\approx}0.5$, $c_{\mathrm{step}}{\approx}0.01$,
-    $r_{\mathrm{success}}=+10$, to be tuned empirically). An additional penalty
-    (e.g., $-1$) may apply if the pusher exits the workspace or loses contact for
-    too long.
+    Here $d_{\mathrm{pos}}=\|p-p^*\|_2$ is measured in meters and
+    $L=0.4\sqrt{2}\,\mathrm{m}$ is the workspace diagonal. The orientation
+    error is the shortest angular distance,
+    $d_{\mathrm{rot}}=|\operatorname{atan2}(\sin(\theta-\theta^*),
+    \cos(\theta-\theta^*))|$, measured in radians. Pose errors are evaluated
+    after each action, and $\mathbf{1}[\cdot]$ denotes an indicator function.
+    Initial settings are $w_p=w_r=1$, $c_{\mathrm{step}}=0.01$,
+    $R_s=10$, and $c_b=1$, to be tuned on validation episodes.
+
+    Success requires both $d_{\mathrm{pos}}<0.02\,\mathrm{m}$ and
+    $d_{\mathrm{rot}}<\pi/18$; the success bonus is awarded once and the
+    episode then terminates. Episodes reaching the step limit are truncated
+    without a success bonus. An action requesting a pusher position outside
+    the admissible workspace is marked invalid and clipped to the boundary;
+    this incurs $c_b$ but does not end the episode. Workspace boundaries
+    confine the object. We do not penalize loss of contact, since moving away
+    and establishing a new contact may be necessary to correct orientation.
+    The per-step cost discourages unnecessary delays. We will compare the
+    normalized reward against the original unnormalized pose-error reward,
+    keeping other settings fixed, to assess its effect on learning and success.
 
     \item
     \textbf{Neural Network Structure:}
