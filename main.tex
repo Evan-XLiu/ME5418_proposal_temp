@@ -128,8 +128,9 @@
     We consider a tabletop planar pushing environment with a single robot
     end-effector (pusher), a movable rigid object, and a target pose, on a
     bounded square tabletop (roughly $0.4\,\mathrm{m} \times 0.4\,\mathrm{m}$).
-    The main experiment uses a T-shaped object, although simpler shapes may also
-    be considered.
+    The core experiment uses two object geometries: a T-shaped object and a
+    rectangle. This keeps the geometry variation small enough to be feasible
+    while testing whether the policy relies on one specific contact shape.
 
     \item
     This is a single-agent, single-robot task with no inter-agent communication.
@@ -142,8 +143,10 @@
     can only be moved indirectly through contact.
 
     \item
-    At the start of each episode, the object's initial position and orientation
-    are randomized within the workspace; the target pose may also be randomized.
+    At the start of each episode, the object's initial pose, target pose,
+    geometry, and object--table friction coefficient are randomized. We use a
+    uniform training range of $\mu\in[0.3,0.7]$ and reserve fixed values
+    $\mu\in\{0.2,0.5,0.8\}$ for robustness testing.
 
     \item
     The robot must reach the target configuration within a limited number of
@@ -152,9 +155,8 @@
     $10^{\circ}$.
 
     \item
-    If time permits, we will additionally randomize physical properties such as
-    the object--table friction coefficient to test robustness under different
-    dynamics.
+    Friction and geometry randomization are part of the required experiment,
+    rather than optional extensions.
 
 \end{itemize}
 
@@ -188,13 +190,13 @@
 
     \item
     \textbf{Reward structure:}
-    We use a dense pose-error reward with normalized position and orientation
+    We use a dense pose-progress reward with normalized position and orientation
     terms, so their relative weights are not determined by the choice of units:
 
     \[
         r_t =
-        -w_p \frac{d_{\mathrm{pos},t+1}}{L}
-        -w_r \frac{d_{\mathrm{rot},t+1}}{\pi}
+        w_p \frac{d_{\mathrm{pos},t}-d_{\mathrm{pos},t+1}}{L}
+        +w_r \frac{d_{\mathrm{rot},t}-d_{\mathrm{rot},t+1}}{\pi}
         - c_{\mathrm{step}}
         + R_s\mathbf{1}[\mathrm{success}_{t+1}]
         - c_b\mathbf{1}[\mathrm{invalid}_t].
@@ -206,8 +208,10 @@
     $d_{\mathrm{rot}}=|\operatorname{atan2}(\sin(\theta-\theta^*),
     \cos(\theta-\theta^*))|$, measured in radians. Pose errors are evaluated
     after each action, and $\mathbf{1}[\cdot]$ denotes an indicator function.
-    Initial settings are $w_p=w_r=1$, $c_{\mathrm{step}}=0.01$,
-    $R_s=10$, and $c_b=1$, to be tuned on validation episodes.
+    Fixed initial settings are $w_p=w_r=1$, $c_{\mathrm{step}}=0.01$,
+    $R_s=10$, and $c_b=1$. Reward tuning is limited to a small pilot study of
+    the position-to-orientation weight ratio; the selected values are then held
+    fixed across all methods, seeds, and test conditions.
 
     Success requires both $d_{\mathrm{pos}}<0.02\,\mathrm{m}$ and
     $d_{\mathrm{rot}}<\pi/18$; the success bonus is awarded once and the
@@ -217,9 +221,8 @@
     this incurs $c_b$ but does not end the episode. Workspace boundaries
     confine the object. We do not penalize loss of contact, since moving away
     and establishing a new contact may be necessary to correct orientation.
-    The per-step cost discourages unnecessary delays. We will compare the
-    normalized reward against the original unnormalized pose-error reward,
-    keeping other settings fixed, to assess its effect on learning and success.
+    The progress terms provide immediate feedback for actions that reduce either
+    error, while the per-step cost discourages unnecessary delays.
 
     \item
     \textbf{Neural Network Structure:}
@@ -241,19 +244,19 @@
 \begin{itemize}
 
     \item
-    We plan to use Proximal Policy Optimization (PPO) as the primary algorithm,
-    given its stability and wide use in continuous robotic control; time
-    permitting, we may additionally compare against SAC.
+    We use Proximal Policy Optimization (PPO) as the sole algorithm in the core
+    experiment, given its stability and wide use in continuous robotic control.
 
     \item
-    We will evaluate task success rate, final position error, final orientation
-    error, and steps-to-target, averaged over a held-out set of randomized test
-    episodes (e.g., 100).
+    We will train at least three independent random seeds and report the mean and
+    standard deviation of task success rate, final position error, final
+    orientation error, and steps-to-target over 100 held-out episodes per seed
+    and test condition.
 
     \item
-    The policy will be evaluated under different initial and target poses, and
-    if time permits, under different friction coefficients or object geometries,
-    to study generalization and robustness.
+    Required tests cover both object geometries and multiple fixed friction
+    coefficients, including one nominal and two held-out conditions, to measure
+    robustness beyond randomized initial and target poses.
 
     \item
     As a baseline, we will compare against a heuristic controller that first
@@ -264,6 +267,12 @@
     accurate contact/friction model -- exactly the dependency RL avoids. We
     expect the learned policy to perform better on cases requiring multiple
     contacts or simultaneous position/orientation adjustment.
+
+    \item
+    The core deliverable is therefore PPO versus the heuristic baseline under
+    pose, friction, and two-shape randomization, evaluated across multiple seeds.
+    Only if time remains will we add SAC, extra unseen geometries, or a comparison
+    with the original unnormalized pose-error reward.
 
 \end{itemize}
 
