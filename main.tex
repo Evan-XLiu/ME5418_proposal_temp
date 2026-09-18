@@ -43,7 +43,7 @@
 % =========================================================
 
 \begin{flushleft}
-    {\huge \textbf{Learning Planar Object Pushing with Reinforcement Learning}}\\[6pt]
+    {\huge \textbf{Learning Robot End-Effector Control for Planar Object Pushing}}\\[6pt]
     {\large \color{subtitleblue} ME5418 Final Project Proposal}\\[10pt]
 
     \textbf{Taowen Liu}, A0352191J
@@ -77,9 +77,9 @@
 
     \item
     In this project, we investigate whether reinforcement learning can learn a
-    closed-loop pushing policy that moves an object from a randomized initial pose
-    to a desired target pose without relying on an accurate analytic model of the
-    contact dynamics.
+    closed-loop Cartesian end-effector policy that uses a stick tool to move an
+    object from a randomized initial pose to a desired target pose without
+    relying on an accurate analytic model of the contact dynamics.
 
 \end{itemize}
 
@@ -125,38 +125,39 @@
 \begin{itemize}
 
     \item
-    We consider a tabletop planar pushing environment with a single robot
-    end-effector (pusher), a movable rigid object, and a target pose, on a
-    bounded square tabletop (roughly $0.4\,\mathrm{m} \times 0.4\,\mathrm{m}$).
-    The core experiment uses two object geometries: a T-shaped object and a
-    rectangle. This keeps the geometry variation small enough to be feasible
-    while testing whether the policy relies on one specific contact shape.
+    The core task is PushT in the two-dimensional Gym-PushT environment: a robot
+    end-effector must use a vertical stick to push a T-shaped object into a
+    target region in a $512\times512$ workspace. Gym-PushT represents the
+    stick's contact tip as a kinematic circle, which we interpret as a planar
+    end-effector proxy. The core simulation therefore abstracts away the robot
+    arm, its URDF, joint kinematics, and joint-level control.
 
     \item
-    This is a single-agent, single-robot task with no inter-agent communication.
-    At each control step, the agent is assumed to have full-state knowledge of
-    the pusher position and the object's planar pose (position and orientation),
-    provided directly by the simulator and analogous to an overhead-camera or
-    motion-capture pose estimator in a real setup; no force/torque or tactile
-    sensing is assumed. The agent's only capability is to command the planar
-    position of the pusher (it cannot grasp or lift the object), so the object
-    can only be moved indirectly through contact.
+    This is a single-agent robotic manipulation task at the Cartesian
+    end-effector level. At each control step, the policy receives the planar
+    position of the end-effector proxy and the object pose; no force/torque or
+    tactile sensing is assumed. It commands the next planar target point of the
+    end-effector proxy, which is moved by the environment's built-in position
+    controller. The study therefore evaluates contact-point selection and
+    closed-loop end-effector control rather than joint-space motion planning.
 
     \item
-    At the start of each episode, the object's initial pose, target pose,
-    geometry, and object--table friction coefficient are randomized. We use a
-    uniform training range of $\mu\in[0.3,0.7]$ and reserve fixed values
-    $\mu\in\{0.2,0.5,0.8\}$ for robustness testing.
+    At the start of each episode, the end-effector proxy position and the
+    object's position and orientation are randomized. The target pose remains
+    fixed in the core experiment, matching the standard Gym-PushT task.
 
     \item
-    The robot must reach the target configuration within a limited number of
-    control steps (e.g., 200--300 per episode), succeeding when the position
-    error is below $2\,\mathrm{cm}$ and the orientation error is below
-    $10^{\circ}$.
+    The policy must place the T-shaped object into the target region within a
+    limited number of control steps (e.g., 300 per episode). Following
+    Gym-PushT, an episode succeeds when object--target coverage exceeds $95\%$.
 
     \item
-    Friction and geometry randomization are part of the required experiment,
-    rather than optional extensions.
+    Required robustness tests use broader held-out initial-pose ranges and
+    multiple simulator damping settings. Additional pushable geometries, such
+    as rectangles or L-shaped objects, are optional generalization tests.
+    Friction changes, randomized targets, and a full PandaStick robot model are
+    further extensions because they require modifying or replacing the base
+    environment.
 
 \end{itemize}
 
@@ -171,22 +172,20 @@
 
     \item
     \textbf{State space:}
-    Low-dimensional robot and object states, including:
-
-    \begin{itemize}
-        \item current pusher/end-effector position;
-        \item object position and orientation;
-        \item target position and orientation;
-        \item relative object-to-target position and orientation;
-        \item optionally, object and robot velocities.
-    \end{itemize}
+    We use the normalized five-dimensional simulator state
+    $s_t=[x_{ee,t},y_{ee,t},x_{o,t},y_{o,t},\theta_{o,t}]$, containing the
+    current planar end-effector proxy position and T-object pose. The fixed
+    target pose is known by the environment and is used to compute reward and
+    evaluation metrics.
 
     \item
     \textbf{Action space:}
-    A continuous action space controlling the planar motion of the
-    pusher/end-effector, $a_t = [\Delta x, \Delta y]$, the desired displacement
-    per control step. If a robotic arm is used, these commands can instead be
-    converted into end-effector Cartesian control commands.
+    The continuous action
+    $a_t=[x^{\mathrm{cmd}}_{ee,t},y^{\mathrm{cmd}}_{ee,t}]\in[0,512]^2$
+    specifies the next Cartesian target of the end-effector proxy. Gym-PushT
+    uses an internal PD controller to move the stick-tip proxy toward this
+    point. A future PandaStick implementation can map the same planar command to
+    the physical end-effector after inverse kinematics and reachability checks.
 
     \item
     \textbf{Reward structure:}
@@ -202,8 +201,8 @@
         - c_b\mathbf{1}[\mathrm{invalid}_t].
     \]
 
-    Here $d_{\mathrm{pos}}=\|p-p^*\|_2$ is measured in meters and
-    $L=0.4\sqrt{2}\,\mathrm{m}$ is the workspace diagonal. The orientation
+    Here $d_{\mathrm{pos}}=\|p-p^*\|_2$ is measured in simulator units and
+    $L=512\sqrt{2}$ is the workspace diagonal. The orientation
     error is the shortest angular distance,
     $d_{\mathrm{rot}}=|\operatorname{atan2}(\sin(\theta-\theta^*),
     \cos(\theta-\theta^*))|$, measured in radians. Pose errors are evaluated
@@ -213,16 +212,15 @@
     the position-to-orientation weight ratio; the selected values are then held
     fixed across all methods, seeds, and test conditions.
 
-    Success requires both $d_{\mathrm{pos}}<0.02\,\mathrm{m}$ and
-    $d_{\mathrm{rot}}<\pi/18$; the success bonus is awarded once and the
-    episode then terminates. Episodes reaching the step limit are truncated
-    without a success bonus. An action requesting a pusher position outside
-    the admissible workspace is marked invalid and clipped to the boundary;
-    this incurs $c_b$ but does not end the episode. Workspace boundaries
-    confine the object. We do not penalize loss of contact, since moving away
-    and establishing a new contact may be necessary to correct orientation.
-    The progress terms provide immediate feedback for actions that reduce either
-    error, while the per-step cost discourages unnecessary delays.
+    Success is defined by the standard Gym-PushT criterion of more than $95\%$
+    object--target coverage; the success bonus is awarded once and the episode
+    then terminates. Episodes reaching the step limit are truncated without a
+    success bonus. End-effector commands are clipped to the $512\times512$
+    workspace, with $c_b$ applied to invalid commands. We do not penalize loss
+    of contact, since moving around the object and establishing a new contact
+    may be necessary to correct orientation. The progress terms supplement the
+    environment's coverage criterion with feedback before the object overlaps
+    the target, while the per-step cost discourages unnecessary delays.
 
     \item
     \textbf{Neural Network Structure:}
@@ -249,30 +247,24 @@
 
     \item
     We will train at least three independent random seeds and report the mean and
-    standard deviation of task success rate, final position error, final
-    orientation error, and steps-to-target over 100 held-out episodes per seed
-    and test condition.
+    standard deviation of task success rate, final target coverage, final
+    position error, final orientation error, and steps-to-target over 100
+    held-out episodes per seed and test condition.
 
     \item
-    Required tests cover both object geometries and multiple fixed friction
-    coefficients, including one nominal and two held-out conditions, to measure
-    robustness beyond randomized initial and target poses.
+    Required tests cover nominal Gym-PushT episodes, broader held-out initial
+    poses, and multiple simulator damping settings. These tests measure
+    robustness without requiring a separate robot simulator.
 
     \item
     As a baseline, we will compare against a heuristic controller that first
-    moves the pusher to a contact point behind the object (relative to the
-    target direction) and then pushes it toward the target, re-planning as the
-    object-to-target direction changes. We use this lightweight heuristic rather
-    than a full model-based planner, since the latter would itself require an
-    accurate contact/friction model -- exactly the dependency RL avoids. We
+    moves the end-effector proxy to a contact point behind the object (relative
+    to the target direction) and then pushes it toward the target, re-planning
+    as the object-to-target direction changes. We use this lightweight heuristic
+    rather than a full model-based planner, since the latter would itself
+    require an accurate contact/friction model -- exactly the dependency RL avoids. We
     expect the learned policy to perform better on cases requiring multiple
     contacts or simultaneous position/orientation adjustment.
-
-    \item
-    The core deliverable is therefore PPO versus the heuristic baseline under
-    pose, friction, and two-shape randomization, evaluated across multiple seeds.
-    Only if time remains will we add SAC, extra unseen geometries, or a comparison
-    with the original unnormalized pose-error reward.
 
 \end{itemize}
 
