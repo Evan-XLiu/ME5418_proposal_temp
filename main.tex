@@ -17,18 +17,18 @@
 % Formatting
 % =========================================================
 \setlength{\parindent}{0pt}
-\setlength{\parskip}{3pt}
+\setlength{\parskip}{2pt}
 
 \setlist[itemize]{
     leftmargin=1.5em,
-    itemsep=4pt,
+    itemsep=3pt,
     topsep=3pt
 }
 
 % Plain, left-aligned run-in headings (memo style, matching the
 % example proposal) instead of IEEEtran's default centered small caps.
 \titleformat{\section}{\normalfont\large\bfseries}{}{0pt}{}
-\titlespacing*{\section}{0pt}{14pt}{6pt}
+\titlespacing*{\section}{0pt}{13pt}{6pt}
 
 % Subtitle color matching the example proposal's link-style byline.
 \definecolor{subtitleblue}{HTML}{1155CC}
@@ -125,12 +125,12 @@
 \begin{itemize}
 
     \item
-    The core task is PushT in the two-dimensional Gym-PushT environment: a robot
-    end-effector must use a vertical stick to push a T-shaped object into a
-    target region in a $512\times512$ workspace. Gym-PushT represents the
-    stick's contact tip as a kinematic circle, which we interpret as a planar
-    end-effector proxy. The core simulation therefore abstracts away the robot
-    arm, its URDF, joint kinematics, and joint-level control.
+    The core task is planar robotic pushing: a robot end-effector equipped with
+    a vertical stick must push rigid objects with varied planar geometries into
+    their corresponding target regions on a bounded tabletop. The simulation
+    represents the stick's contact tip as a kinematic planar end-effector proxy
+    while abstracting away the robot arm, joint kinematics, and joint-level
+    control.
 
     \item
     This is a single-agent robotic manipulation task at the Cartesian
@@ -142,22 +142,22 @@
     closed-loop end-effector control rather than joint-space motion planning.
 
     \item
-    At the start of each episode, the end-effector proxy position and the
-    object's position and orientation are randomized. The target pose remains
-    fixed in the core experiment, matching the standard Gym-PushT task.
+    At the start of each episode, an object geometry is sampled from the
+    training set, and the end-effector proxy position and object pose are
+    randomized. The corresponding target pose remains fixed to keep the primary
+    learning objective focused.
 
     \item
-    The policy must place the T-shaped object into the target region within a
-    limited number of control steps (e.g., 300 per episode). Following
-    Gym-PushT, an episode succeeds when object--target coverage exceeds $95\%$.
+    The policy must place the current object into its target region within a
+    limited number of control steps (e.g., 300 per episode). An episode succeeds
+    when object--target coverage exceeds $95\%$.
 
     \item
-    Required robustness tests use broader held-out initial-pose ranges and
-    multiple simulator damping settings. Additional pushable geometries, such
-    as rectangles or L-shaped objects, are optional generalization tests.
-    Friction changes, randomized targets, and a full PandaStick robot model are
-    further extensions because they require modifying or replacing the base
-    environment.
+    Required robustness tests use multiple training geometries, held-out object
+    geometries, broader initial-pose ranges, and multiple simulator damping
+    settings. Friction changes, randomized targets, and a full 7-DoF robot-arm
+    model with a stick tool are further extensions because they require a
+    higher-fidelity simulation.
 
 \end{itemize}
 
@@ -172,19 +172,20 @@
 
     \item
     \textbf{State space:}
-    We use the normalized five-dimensional simulator state
-    $s_t=[x_{ee,t},y_{ee,t},x_{o,t},y_{o,t},\theta_{o,t}]$, containing the
-    current planar end-effector proxy position and T-object pose. The fixed
-    target pose is known by the environment and is used to compute reward and
-    evaluation metrics.
+    We use the normalized structured state
+    $s_t=[x_{ee,t},y_{ee,t},x_{o,t},y_{o,t},\theta_{o,t},g_o]$, containing the
+    planar end-effector proxy position, object pose, and a compact geometry
+    descriptor $g_o$ formed from normalized boundary keypoints. The matching
+    target geometry and pose are known by the environment and are used to
+    compute reward and evaluation metrics.
 
     \item
     \textbf{Action space:}
     The continuous action
-    $a_t=[x^{\mathrm{cmd}}_{ee,t},y^{\mathrm{cmd}}_{ee,t}]\in[0,512]^2$
-    specifies the next Cartesian target of the end-effector proxy. Gym-PushT
-    uses an internal PD controller to move the stick-tip proxy toward this
-    point. A future PandaStick implementation can map the same planar command to
+    $a_t=[x^{\mathrm{cmd}}_{ee,t},y^{\mathrm{cmd}}_{ee,t}]\in[0,1]^2$
+    specifies the next normalized Cartesian target of the end-effector proxy.
+    An internal position controller moves the stick-tip proxy toward this point.
+    A higher-fidelity robot implementation can map the same planar command to
     the physical end-effector after inverse kinematics and reachability checks.
 
     \item
@@ -201,32 +202,34 @@
         - c_b\mathbf{1}[\mathrm{invalid}_t].
     \]
 
-    Here $d_{\mathrm{pos}}=\|p-p^*\|_2$ is measured in simulator units and
-    $L=512\sqrt{2}$ is the workspace diagonal. The orientation
-    error is the shortest angular distance,
+    Here $d_{\mathrm{pos}}=\|p-p^*\|_2$ is measured in normalized workspace
+    units and $L=\sqrt{2}$ is the diagonal of the normalized workspace. The
+    orientation error is the shortest angular distance,
     $d_{\mathrm{rot}}=|\operatorname{atan2}(\sin(\theta-\theta^*),
     \cos(\theta-\theta^*))|$, measured in radians. Pose errors are evaluated
-    after each action, and $\mathbf{1}[\cdot]$ denotes an indicator function.
-    Fixed initial settings are $w_p=w_r=1$, $c_{\mathrm{step}}=0.01$,
-    $R_s=10$, and $c_b=1$. Reward tuning is limited to a small pilot study of
-    the position-to-orientation weight ratio; the selected values are then held
-    fixed across all methods, seeds, and test conditions.
+    after each action; for symmetric objects, the equivalent target orientation
+    that minimizes this error is used. $\mathbf{1}[\cdot]$ denotes an indicator
+    function. Fixed initial settings are $w_p=w_r=1$,
+    $c_{\mathrm{step}}=0.01$, $R_s=10$, and $c_b=1$. Reward tuning is limited
+    to a small pilot study of the position-to-orientation weight ratio; the
+    selected values are then held fixed across all methods, seeds, and test
+    conditions.
 
-    Success is defined by the standard Gym-PushT criterion of more than $95\%$
-    object--target coverage; the success bonus is awarded once and the episode
-    then terminates. Episodes reaching the step limit are truncated without a
-    success bonus. End-effector commands are clipped to the $512\times512$
-    workspace, with $c_b$ applied to invalid commands. We do not penalize loss
-    of contact, since moving around the object and establishing a new contact
-    may be necessary to correct orientation. The progress terms supplement the
-    environment's coverage criterion with feedback before the object overlaps
-    the target, while the per-step cost discourages unnecessary delays.
+    Success requires more than $95\%$ object--target coverage; the success bonus
+    is awarded once and the episode then terminates. Episodes reaching the step
+    limit are truncated without a success bonus. End-effector commands are
+    clipped to the normalized workspace, with $c_b$ applied to invalid
+    commands. We do not penalize loss of contact, since moving around the object
+    and establishing a new contact may be necessary to correct orientation. The
+    progress terms supplement the environment's coverage criterion with
+    feedback before the object overlaps the target, while the per-step cost
+    discourages unnecessary delays.
 
     \item
     \textbf{Neural Network Structure:}
-    Since the observation space is low-dimensional, we plan to use a simple MLP
-    (e.g., two hidden layers of 256 units, ReLU) for the policy and value
-    networks, following common continuous-control PPO defaults (e.g.,
+    Since the structured observation remains modest-dimensional, we plan to use
+    a simple MLP (e.g., two hidden layers of 256 units, ReLU) for the policy and
+    value networks, following common continuous-control PPO defaults (e.g.,
     Stable-Baselines3), with the actor and critic sharing a trunk or fully
     separate if training is unstable.
 
@@ -249,11 +252,12 @@
     We will train at least three independent random seeds and report the mean and
     standard deviation of task success rate, final target coverage, final
     position error, final orientation error, and steps-to-target over 100
-    held-out episodes per seed and test condition.
+    held-out episodes per seed and test condition, both overall and per
+    geometry.
 
     \item
-    Required tests cover nominal Gym-PushT episodes, broader held-out initial
-    poses, and multiple simulator damping settings. These tests measure
+    Required tests cover seen and held-out object geometries, broader held-out
+    initial poses, and multiple simulator damping settings. These tests measure
     robustness without requiring a separate robot simulator.
 
     \item
@@ -262,9 +266,9 @@
     to the target direction) and then pushes it toward the target, re-planning
     as the object-to-target direction changes. We use this lightweight heuristic
     rather than a full model-based planner, since the latter would itself
-    require an accurate contact/friction model -- exactly the dependency RL avoids. We
-    expect the learned policy to perform better on cases requiring multiple
-    contacts or simultaneous position/orientation adjustment.
+    require an accurate contact/friction model -- exactly the dependency RL
+    avoids. We expect the learned policy to perform better on cases requiring
+    multiple contacts or simultaneous position/orientation adjustment.
 
 \end{itemize}
 
